@@ -50,7 +50,7 @@ jobs:
         7z a ../AmazonScraper-${{ steps.get_version.outputs.VERSION }}-windows.zip *
     
     - name: Upload Artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: AmazonScraper-Windows
         path: |
