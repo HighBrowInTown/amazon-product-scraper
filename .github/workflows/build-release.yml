@@ -1,0 +1,163 @@
+name: Build and Release EXE
+
+on:
+  push:
+    tags:
+      - 'v*'  # Trigger on version tags like v1.0.0
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pyinstaller
+    
+    - name: Build EXE with PyInstaller
+      run: |
+        pyinstaller --onefile --console --name "AmazonScraper" product_scrap.py
+    
+    - name: Get version from tag
+      id: get_version
+      shell: bash
+      run: |
+        if [[ $GITHUB_REF == refs/tags/* ]]; then
+          echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        else
+          echo "VERSION=dev-$(date +%Y%m%d-%H%M%S)" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Create Release Archive
+      shell: bash
+      run: |
+        mkdir release
+        cp dist/AmazonScraper.exe release/
+        cp README.md release/
+        cp LICENSE release/ || echo "No LICENSE file"
+        cd release
+        7z a ../AmazonScraper-${{ steps.get_version.outputs.VERSION }}-windows.zip *
+    
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: AmazonScraper-Windows
+        path: |
+          dist/AmazonScraper.exe
+          AmazonScraper-*.zip
+    
+    - name: Create Release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          AmazonScraper-*.zip
+          dist/AmazonScraper.exe
+        body: |
+          ## Amazon Product Scraper ${{ steps.get_version.outputs.VERSION }}
+          
+          ### 📦 Downloads
+          - **Windows EXE**: `AmazonScraper.exe` (standalone, no Python required)
+          - **ZIP Package**: Includes EXE, README, and LICENSE
+          
+          ### ✨ Features
+          - Search Amazon India products
+          - Customizable product count (1-50)
+          - Choose save location
+          - Export to formatted Excel
+          - Headless operation
+          
+          ### 🚀 Quick Start
+          1. Download `AmazonScraper.exe`
+          2. Double-click to run
+          3. Follow prompts
+          4. Get your Excel file!
+          
+          ### 📋 Requirements
+          - Windows 10/11
+          - Google Chrome browser installed
+          - Internet connection
+          
+          ### 🐛 Bug Fixes & Improvements
+          See [CHANGELOG.md](CHANGELOG.md) for details.
+          
+          ---
+          **Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ steps.get_version.outputs.VERSION }}
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-linux:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+    
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y chromium-browser
+    
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pyinstaller
+    
+    - name: Build Linux Executable
+      run: |
+        pyinstaller --onefile --console --name "AmazonScraper" product_scrap.py
+    
+    - name: Get version from tag
+      id: get_version
+      run: |
+        if [[ $GITHUB_REF == refs/tags/* ]]; then
+          echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        else
+          echo "VERSION=dev-$(date +%Y%m%d-%H%M%S)" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Create Release Archive
+      run: |
+        mkdir release
+        cp dist/AmazonScraper release/
+        cp README.md release/
+        cp LICENSE release/ || echo "No LICENSE file"
+        cd release
+        tar -czf ../AmazonScraper-${{ steps.get_version.outputs.VERSION }}-linux.tar.gz *
+    
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: AmazonScraper-Linux
+        path: |
+          dist/AmazonScraper
+          AmazonScraper-*.tar.gz
+    
+    - name: Upload to Release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          AmazonScraper-*.tar.gz
+          dist/AmazonScraper
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
