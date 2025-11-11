@@ -1,68 +1,49 @@
 import time
 import os
+import sys
+import argparse
+import re
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 from datetime import datetime
-
-def get_save_location():
+def get_google_sheets_service():
     """
-    Get save location from user, with default to current directory
+    Authenticate with Google Sheets API
+    Requires: pip install google-auth-oauthlib google-auth-httplib2 google-api-python-client
     """
-    print("\n📁 Where would you like to save the Excel file?")
-    print("   (Press Enter for current directory)")
-    save_path = input("   Enter full path: ").strip()
-    
-    if not save_path:
-        save_path = os.getcwd()
-    
-    # Validate path
-    if not os.path.exists(save_path):
-        print(f"\n⚠ Path doesn't exist: {save_path}")
-        create = input("   Create this directory? (y/n): ").strip().lower()
-        if create == 'y':
-            try:
-                os.makedirs(save_path, exist_ok=True)
-                print(f"✓ Created directory: {save_path}")
-            except Exception as e:
-                print(f"❌ Error creating directory: {e}")
-                print("   Using current directory instead.")
-                save_path = os.getcwd()
-        else:
-            print("   Using current directory instead.")
-            save_path = os.getcwd()
-    
-    return save_path
-
-def get_product_count():
-    """
-    Get number of products to scrape from user
-    """
-    while True:
-        print("\n🔢 How many products would you like to scrape?")
-        print("   (Enter a number between 1-50, default is 10)")
-        count_input = input("   Number of products: ").strip()
+    try:
+        from google.auth.transport.requests import Request
+        from google.oauth2.service_account import Credentials
+        from googleapiclient.discovery import build
         
-        if not count_input:
-            return 10
-        
-        try:
-            count = int(count_input)
-            if 1 <= count <= 50:
-                return count
-            else:
-                print("   ⚠ Please enter a number between 1 and 50")
-        except ValueError:
-            print("   ⚠ Please enter a valid number")
+        auth.authenticate_user()
+        service = build('sheets', 'v4')
+        return service
+    except ImportError:
+        print("❌ Google Sheets libraries not installed!")
+        print("   Install with: pip install google-auth-oauthlib google-auth-httplib2 google-api-python-client")
+        return None
+    except Exception as e:
+        print(f"❌ Error authenticating with Google Sheets: {e}")
+        return None
 
-def scrape_amazon_products(keyword, max_products=10):
+def extract_asin_from_url(url):
     """
-    Scrape Amazon India for products based on keyword
-    Returns list of products with title, price, rating, and URL
+    Extract ASIN from Amazon URL
+    """
+    match = re.search(r'/dp/([A-Z0-9]{10})', url)
+    if match:
+        return match.group(1)
+    return None
+
+def scrape_product_details(url):
+    """
+    Scrape detailed product information from Amazon product page
+    Returns dict with rating, bestseller rank, and categories
     """
     options = webdriver.ChromeOptions()
     options.add_argument('--headless=new')
@@ -74,149 +55,227 @@ def scrape_amazon_products(keyword, max_products=10):
     options.add_argument('--disable-extensions')
     options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
     
-    # Disable automation flags
     options.add_experimental_option("excludeSwitches", ["enable-automation"])
     options.add_experimental_option('useAutomationExtension', False)
     
     driver = None
+    product_data = {
+        'url': url,
+        'asin': extract_asin_from_url(url),
+        'title': 'N/A',
+        'rating': 'N/A',
+        'num_ratings': 'N/A',
+        'bestseller_rank': 'N/A',
+        'main_category': 'N/A',
+        'sub_category': 'N/A',
+        'price': 'N/A',
+        'status': 'Success'
+    }
+    
     try:
-        print("\n🔧 Initializing Chrome WebDriver in headless mode...")
+        print(f"\n🔧 Initializing Chrome WebDriver...")
         driver = webdriver.Chrome(options=options)
         driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
         
-        # Build Search URL
-        search_url = f"https://www.amazon.in/s?k={keyword.replace(' ', '+')}"
-        print(f"🌐 Navigating to: {search_url}")
-        driver.get(search_url)
+        print(f"🌐 Navigating to: {url}")
+        driver.get(url)
         
-        # Wait for search results to load
+        # Wait for main content
         wait = WebDriverWait(driver, 10)
-        wait.until(EC.presence_of_element_located((By.XPATH, "//div[@data-component-type='s-search-result']")))
+        wait.until(EC.presence_of_element_located((By.ID, "dp-container")))
         
-        time.sleep(3)  # Additional wait for dynamic content
+        time.sleep(2)  # Additional wait for dynamic content
         
-        products = []
-        results = driver.find_elements(By.XPATH, "//div[@data-component-type='s-search-result']")
-        
-        total_found = len(results)
-        products_to_scrape = min(max_products, total_found)
-        
-        print(f"✓ Found {total_found} products. Extracting top {products_to_scrape}...")
-        print("-" * 60)
-        
-        for idx, result in enumerate(results[:max_products], 1):
-            product_data = {}
-            
-            # Extract Title - try multiple selectors
+        # Extract Title
+        try:
+            title = driver.find_element(By.ID, "productTitle").text.strip()
+            product_data['title'] = title
+            print(f"✓ Title: {title[:60]}...")
+        except:
             try:
-                title_element = result.find_element(By.CSS_SELECTOR, "h2 a span")
-                product_data['title'] = title_element.text.strip()
+                title = driver.find_element(By.XPATH, "//h1//span[@class='a-size-large product-title-word-break']").text.strip()
+                product_data['title'] = title
             except:
                 try:
-                    title_element = result.find_element(By.CSS_SELECTOR, "h2.a-size-mini span")
-                    product_data['title'] = title_element.text.strip()
+                    title = driver.find_element(By.XPATH, "//h1").text.strip()
+                    product_data['title'] = title
                 except:
+                    print("⚠ Could not extract title")
+        
+        # Extract Rating
+        rating_found = False
+        try:
+            # Method 1: Search page source first (most reliable)
+            try:
+                page_text = driver.page_source
+                rating_match = re.search(r'(\d+\.?\d*)\s+out of 5 stars', page_text)
+                if rating_match:
+                    rating = rating_match.group(1)
+                    product_data['rating'] = rating
+                    print(f"✓ Rating: {rating}")
+                    rating_found = True
+            except:
+                pass
+            
+            # Method 2: Fallback to element selection if page source didn't work
+            if not rating_found:
+                rating_selectors = [
+                    (By.XPATH, "//a[contains(@class, 'mvt-cm-cr-review-stars-mini-popover')]//span[@class='a-icon-alt']"),
+                    (By.XPATH, "//i[contains(@class, 'a-icon-star')]//span[@class='a-icon-alt']"),
+                    (By.XPATH, "//span[@aria-label and contains(@aria-label, 'out of')]"),
+                ]
+                
+                for selector_type, selector_value in rating_selectors:
                     try:
-                        title_element = result.find_element(By.XPATH, ".//h2//span")
-                        product_data['title'] = title_element.text.strip()
+                        rating_element = driver.find_element(selector_type, selector_value)
+                        rating_text = rating_element.get_attribute('aria-label')
+                        if not rating_text:
+                            rating_text = rating_element.text
+                        
+                        if rating_text:
+                            rating_match = re.search(r'(\d+\.?\d*)', rating_text)
+                            if rating_match:
+                                rating = rating_match.group(1)
+                                try:
+                                    float(rating)
+                                    product_data['rating'] = rating
+                                    print(f"✓ Rating: {rating}")
+                                    rating_found = True
+                                    break
+                                except:
+                                    continue
                     except:
-                        product_data['title'] = "N/A"
+                        continue
+        except Exception as e:
+            print(f"Rating extraction error: {e}")
+        
+        if not rating_found:
+            print("⚠ Could not extract rating")
+        
+        # Extract Number of Ratings
+        num_ratings_found = False
+        try:
+            # Try multiple selectors for ratings count
+            num_ratings_selectors = [
+                (By.XPATH, "//span[contains(text(), 'ratings')]"),
+                (By.CSS_SELECTOR, "span#acrCustomerReviewText"),
+                (By.XPATH, "//span[contains(@class, 'a-size-base') and contains(text(), 'ratings')]"),
+                (By.XPATH, "//a[@href='#cm_cr-product_reviews']/span")
+            ]
             
-            # Extract Price - try multiple methods
-            try:
-                price_whole = result.find_element(By.CSS_SELECTOR, "span.a-price-whole").text
+            for selector_type, selector_value in num_ratings_selectors:
                 try:
-                    price_fraction = result.find_element(By.CSS_SELECTOR, "span.a-price-fraction").text
-                    product_data['price'] = f"₹{price_whole}{price_fraction}"
+                    num_ratings = driver.find_element(selector_type, selector_value).text
+                    product_data['num_ratings'] = num_ratings
+                    print(f"✓ Number of Ratings: {num_ratings}")
+                    num_ratings_found = True
+                    break
                 except:
-                    product_data['price'] = f"₹{price_whole}"
-            except:
+                    continue
+        except:
+            pass
+        
+        if not num_ratings_found:
+            print("⚠ Could not extract number of ratings")
+        
+        # Extract Price
+        try:
+            # Try multiple price selectors
+            price_selectors = [
+                (By.CSS_SELECTOR, "span.a-price-whole"),
+                (By.XPATH, "//span[@class='a-price-whole']"),
+                (By.XPATH, "//span[contains(@class, 'a-price')]"),
+                (By.CSS_SELECTOR, ".a-price.a-text-price.a-size-medium.apexPriceToPay")
+            ]
+            
+            for selector_type, selector_value in price_selectors:
                 try:
-                    price = result.find_element(By.CSS_SELECTOR, "span.a-price span.a-offscreen").text
-                    product_data['price'] = price
-                except:
-                    try:
-                        price = result.find_element(By.XPATH, ".//span[@class='a-price']//span[@class='a-offscreen']").text
+                    price_elem = driver.find_element(selector_type, selector_value)
+                    price = price_elem.text
+                    if price:
                         product_data['price'] = price
-                    except:
-                        product_data['price'] = "N/A"
-            
-            # Extract Rating
-            try:
-                rating = result.find_element(By.CSS_SELECTOR, "span.a-icon-alt").text
-                product_data['rating'] = rating.split()[0] if rating else "N/A"
-            except:
-                try:
-                    rating = result.find_element(By.XPATH, ".//i[contains(@class, 'a-icon-star-small')]//span").text
-                    product_data['rating'] = rating.split()[0] if rating else "N/A"
+                        print(f"✓ Price: {price}")
+                        break
                 except:
-                    product_data['rating'] = "N/A"
+                    continue
+        except:
+            print("⚠ Could not extract price")
+        
+        # Extract Bestseller Rank and Categories
+        try:
+            # Look for rank in multiple locations
+            rank_found = False
             
-            # Extract Review Count
+            # Method 1: detailBullets section
             try:
-                reviews = result.find_element(By.CSS_SELECTOR, "span.a-size-base.s-underline-text").text
-                product_data['reviews'] = reviews
+                rank_section = driver.find_element(By.ID, "detailBullets_feature_div")
+                rank_text = rank_section.text
+                
+                rank_match = re.search(r'#([\d,]+)\s+in\s+(.+?)(?:\n|$)', rank_text)
+                if rank_match:
+                    rank = rank_match.group(1)
+                    product_data['bestseller_rank'] = f"#{rank}"
+                    print(f"✓ Bestseller Rank: #{rank}")
+                    
+                    categories = rank_match.group(2).strip()
+                    cat_parts = [c.strip() for c in categories.split('>')]
+                    if len(cat_parts) >= 1:
+                        product_data['main_category'] = cat_parts[0]
+                    if len(cat_parts) >= 2:
+                        product_data['sub_category'] = cat_parts[-1]
+                    print(f"✓ Categories: {categories}")
+                    rank_found = True
             except:
+                pass
+            
+            # Method 2: Look in table rows
+            if not rank_found:
                 try:
-                    reviews = result.find_element(By.XPATH, ".//span[contains(@aria-label, 'ratings')]").text
-                    product_data['reviews'] = reviews if reviews else "N/A"
+                    table_rows = driver.find_elements(By.XPATH, "//th/span[contains(text(), 'Best Sellers Rank')]")
+                    if table_rows:
+                        for row in table_rows:
+                            try:
+                                rank_value = row.find_element(By.XPATH, "./../following-sibling::td").text
+                                product_data['bestseller_rank'] = rank_value
+                                print(f"✓ Bestseller Rank: {rank_value}")
+                                rank_found = True
+                                break
+                            except:
+                                continue
                 except:
-                    product_data['reviews'] = "N/A"
+                    pass
             
-            # Extract Product URL
-            try:
-                link_element = result.find_element(By.CSS_SELECTOR, "h2 a")
-                product_url = link_element.get_attribute('href')
-                if '?' in product_url and 'amazon.in' in product_url:
-                    base_url = product_url.split('?')[0]
-                    product_data['url'] = base_url
-                else:
-                    product_data['url'] = product_url
-            except:
+            # Method 3: Search in all text
+            if not rank_found:
                 try:
-                    link_element = result.find_element(By.XPATH, ".//h2//a")
-                    product_url = link_element.get_attribute('href')
-                    if '?' in product_url:
-                        product_url = product_url.split('?')[0]
-                    product_data['url'] = product_url
+                    page_text = driver.find_element(By.TAG_NAME, "body").text
+                    rank_match = re.search(r'#([\d,]+)\s+in\s+(.+?)(?:\n|$)', page_text)
+                    if rank_match:
+                        rank = rank_match.group(1)
+                        product_data['bestseller_rank'] = f"#{rank}"
+                        print(f"✓ Bestseller Rank (from page text): #{rank}")
                 except:
-                    product_data['url'] = "N/A"
-            
-            # Progress indicator
-            if product_data['title'] != "N/A":
-                title_preview = product_data['title'][:50] + "..." if len(product_data['title']) > 50 else product_data['title']
-                print(f"[{idx:2d}/{products_to_scrape}] ✓ {title_preview}")
-                print(f"        Price: {product_data['price']} | Rating: {product_data['rating']} | Reviews: {product_data['reviews']}")
-            
-            # Add product if we got at least title OR url
-            if product_data['title'] != "N/A" or product_data['url'] != "N/A":
-                products.append(product_data)
+                    pass
+                    
+        except:
+            print("⚠ Could not extract bestseller rank and categories")
         
-        print("-" * 60)
-        
-        # If no products found, save page source for debugging
-        if not products:
-            debug_file = 'debug.html'
-            print(f"\n⚠ Debug: Saving page source to {debug_file} for inspection...")
-            with open(debug_file, 'w', encoding='utf-8') as f:
-                f.write(driver.page_source)
-            print(f"✓ Page source saved to: {os.path.abspath(debug_file)}")
-        
-        return products
+        return product_data
     
     except Exception as e:
         print(f"\n❌ Error during scraping: {str(e)}")
+        product_data['status'] = f"Error: {str(e)}"
         import traceback
         traceback.print_exc()
-        return []
+        return product_data
     
     finally:
         if driver:
             driver.quit()
 
-def save_to_excel(products, filename, keyword):
+def save_to_excel(products_data, output_path):
     """
-    Save products to Excel with formatting
+    Save product data to Excel file
     """
     wb = Workbook()
     ws = wb.active
@@ -227,14 +286,14 @@ def save_to_excel(products, filename, keyword):
     header_font = Font(bold=True, color="FFFFFF", size=12)
     
     # Add metadata
-    ws.merge_cells('A1:F1')
+    ws.merge_cells('A1:H1')
     meta_cell = ws['A1']
-    meta_cell.value = f"Amazon India Search Results - '{keyword}'"
+    meta_cell.value = "Amazon Product Details"
     meta_cell.font = Font(bold=True, size=14)
     meta_cell.alignment = Alignment(horizontal="center", vertical="center")
     meta_cell.fill = PatternFill(start_color="FFC000", end_color="FFC000", fill_type="solid")
     
-    ws.merge_cells('A2:F2')
+    ws.merge_cells('A2:H2')
     date_cell = ws['A2']
     date_cell.value = f"Scraped on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
     date_cell.alignment = Alignment(horizontal="center", vertical="center")
@@ -244,139 +303,192 @@ def save_to_excel(products, filename, keyword):
     ws.append([])
     
     # Add headers
-    headers = ["#", "Product Name", "Price", "Rating", "Reviews", "Product URL"]
+    headers = ["ASIN", "Product Title", "Price", "Rating", "# Ratings", "Bestseller Rank", "Main Category", "Sub Category"]
     ws.append(headers)
     
     # Style headers
     for cell in ws[4]:
         cell.fill = header_fill
         cell.font = header_font
-        cell.alignment = Alignment(horizontal="center", vertical="center")
+        cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
     
     # Add product data
-    for idx, prod in enumerate(products, 1):
+    if isinstance(products_data, list):
+        products = products_data
+    else:
+        products = [products_data]
+    
+    for prod in products:
         ws.append([
-            idx,
+            prod.get('asin', 'N/A'),
             prod.get('title', 'N/A'),
             prod.get('price', 'N/A'),
             prod.get('rating', 'N/A'),
-            prod.get('reviews', 'N/A'),
-            prod.get('url', 'N/A')
+            prod.get('num_ratings', 'N/A'),
+            prod.get('bestseller_rank', 'N/A'),
+            prod.get('main_category', 'N/A'),
+            prod.get('sub_category', 'N/A')
         ])
     
     # Adjust column widths
-    ws.column_dimensions['A'].width = 5
-    ws.column_dimensions['B'].width = 60
-    ws.column_dimensions['C'].width = 15
+    ws.column_dimensions['A'].width = 12
+    ws.column_dimensions['B'].width = 50
+    ws.column_dimensions['C'].width = 12
     ws.column_dimensions['D'].width = 10
-    ws.column_dimensions['E'].width = 15
-    ws.column_dimensions['F'].width = 80
+    ws.column_dimensions['E'].width = 12
+    ws.column_dimensions['F'].width = 18
+    ws.column_dimensions['G'].width = 25
+    ws.column_dimensions['H'].width = 25
     
     # Set row heights
     ws.row_dimensions[1].height = 25
     ws.row_dimensions[4].height = 20
     
-    # Make URLs clickable
-    for row in range(5, len(products) + 5):
-        cell = ws.cell(row=row, column=6)
-        if cell.value and cell.value != "N/A":
-            cell.hyperlink = cell.value
-            cell.font = Font(color="0563C1", underline="single")
-    
-    # Freeze panes (keep headers visible)
+    # Freeze panes
     ws.freeze_panes = 'A5'
     
     # Save file
-    wb.save(filename)
+    wb.save(output_path)
+    print(f"✓ Excel file saved to: {output_path}")
+
+def save_to_google_sheets(products_data, spreadsheet_id, sheet_name="Sheet1"):
+    """
+    Save product data to Google Sheets
+    """
+    try:
+        service = get_google_sheets_service()
+        if not service:
+            return False
+        
+        # Prepare data
+        if not isinstance(products_data, list):
+            products = [products_data]
+        else:
+            products = products_data
+        
+        # Create headers
+        headers = ["ASIN", "Product Title", "Price", "Rating", "# Ratings", "Bestseller Rank", "Main Category", "Sub Category"]
+        
+        # Prepare rows
+        rows = [headers]
+        for prod in products:
+            rows.append([
+                prod.get('asin', 'N/A'),
+                prod.get('title', 'N/A'),
+                prod.get('price', 'N/A'),
+                prod.get('rating', 'N/A'),
+                prod.get('num_ratings', 'N/A'),
+                prod.get('bestseller_rank', 'N/A'),
+                prod.get('main_category', 'N/A'),
+                prod.get('sub_category', 'N/A')
+            ])
+        
+        # Write to Google Sheets
+        body = {
+            'values': rows
+        }
+        
+        result = service.spreadsheets().values().update(
+            spreadsheetId=spreadsheet_id,
+            range=f"{sheet_name}!A1",
+            valueInputOption="USER_ENTERED",
+            body=body
+        ).execute()
+        
+        print(f"✓ Data saved to Google Sheets: {spreadsheet_id}")
+        return True
+    except Exception as e:
+        print(f"❌ Error saving to Google Sheets: {e}")
+        return False
+
+def read_urls_from_file(filepath):
+    """
+    Read URLs from a file (one URL per line)
+    """
+    try:
+        with open(filepath, 'r') as f:
+            urls = [line.strip() for line in f if line.strip() and line.startswith('http')]
+        return urls
+    except FileNotFoundError:
+        print(f"❌ File not found: {filepath}")
+        return []
+    except Exception as e:
+        print(f"❌ Error reading file: {e}")
+        return []
 
 def main():
     """
-    Main function to run the scraper
+    Main function with argument parsing
     """
+    parser = argparse.ArgumentParser(
+        description='Amazon Product Details Scraper',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog='''
+Examples:
+  python script.py --input "https://www.amazon.in/dp/B0CZL9BM4S"
+  python script.py --input "urls.txt"
+  python script.py --input "https://www.amazon.in/dp/B0CZL9BM4S" --excel "output.xlsx"
+  python script.py --input "urls.txt" --sheets "SPREADSHEET_ID"
+        '''
+    )
+    
+    parser.add_argument('--input', required=True, help='URL or file path containing URLs')
+    parser.add_argument('--excel', help='Output Excel file path (optional)')
+    parser.add_argument('--sheets', help='Google Sheets ID to save data (optional)')
+    
+    args = parser.parse_args()
+    
     print("=" * 60)
-    print("        🛒 Amazon India Product Scraper 🛒")
-    print("=" * 60)
-    print("\nThis tool scrapes product information from Amazon India")
-    print("and exports the data to an Excel file.")
+    print("   🛒 Amazon Product Details Scraper 🛒")
     print("=" * 60)
     
-    # Get search keyword
-    keyword = input("\n🔍 Enter product keyword to search: ").strip()
+    # Determine if input is URL or file
+    urls = []
+    if args.input.startswith('http'):
+        urls = [args.input]
+    else:
+        urls = read_urls_from_file(args.input)
     
-    if not keyword:
-        print("❌ Error: Keyword cannot be empty!")
-        input("\nPress Enter to exit...")
+    if not urls:
+        print("❌ No valid URLs found!")
         return
     
-    # Get number of products
-    product_count = get_product_count()
-    
-    # Get save location
-    save_path = get_save_location()
-    
-    # Confirm settings
-    print("\n" + "=" * 60)
-    print("📋 SCRAPING CONFIGURATION:")
-    print(f"   Keyword: {keyword}")
-    print(f"   Products to scrape: {product_count}")
-    print(f"   Save location: {save_path}")
-    print("=" * 60)
-    
-    proceed = input("\n▶ Proceed with scraping? (y/n): ").strip().lower()
-    if proceed != 'y':
-        print("\n⚠ Scraping cancelled by user.")
-        input("Press Enter to exit...")
-        return
-    
-    print("\n" + "=" * 60)
-    print(f"🔍 Searching for '{keyword}' on Amazon India...")
-    print("=" * 60)
+    print(f"\n📋 URLs to process: {len(urls)}")
     
     # Scrape products
-    products = scrape_amazon_products(keyword, product_count)
+    all_products = []
+    for i, url in enumerate(urls, 1):
+        print(f"\n{'='*60}")
+        print(f"Processing [{i}/{len(urls)}]")
+        print(f"{'='*60}")
+        product_data = scrape_product_details(url)
+        all_products.append(product_data)
     
-    if products:
-        # Create safe filename
-        safe_keyword = "".join(c if c.isalnum() or c in (' ', '_') else '_' for c in keyword)
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        excel_name = f"{safe_keyword.replace(' ', '_')}_amazon_{timestamp}.xlsx"
-        full_path = os.path.join(save_path, excel_name)
-        
-        print(f"\n💾 Saving data to Excel...")
-        save_to_excel(products, full_path, keyword)
-        
-        print("\n" + "=" * 60)
-        print("✅ SUCCESS!")
-        print("=" * 60)
-        print(f"📊 Scraped products: {len(products)}")
-        print(f"📁 File saved to: {full_path}")
-        print(f"📝 File name: {excel_name}")
-        print("=" * 60)
+    # Save to Excel if specified
+    if args.excel:
+        save_to_excel(all_products, args.excel)
     else:
-        print("\n" + "=" * 60)
-        print("❌ SCRAPING FAILED")
-        print("=" * 60)
-        print("No products found! This could be due to:")
-        print("  1. Amazon blocking automated access")
-        print("  2. Network connectivity issues")
-        print("  3. Page structure has changed")
-        print("  4. Invalid search keyword")
-        print("\n💡 Tips:")
-        print("  - Try a different keyword")
-        print("  - Check your internet connection")
-        print("  - Try again after a few minutes")
-        print("=" * 60)
+        # Default Excel save
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        default_excel = f"amazon_products_{timestamp}.xlsx"
+        save_to_excel(all_products, default_excel)
     
-    input("\nPress Enter to exit...")
+    # Save to Google Sheets if specified
+    if args.sheets:
+        save_to_google_sheets(all_products, args.sheets)
+    
+    print(f"\n{'='*60}")
+    print("✅ SCRAPING COMPLETE!")
+    print(f"{'='*60}")
+    print(f"📊 Products scraped: {len(all_products)}")
+    print(f"{'='*60}\n")
 
 if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
         print("\n\n⚠ Scraping interrupted by user.")
-        input("Press Enter to exit...")
     except Exception as e:
         print(f"\n❌ Unexpected error: {str(e)}")
         import traceback
         traceback.print_exc()
-        input("\nPress Enter to exit...")
