@@ -3,8 +3,8 @@ name: Build and Release EXE
 on:
   push:
     tags:
-      - 'v*'  # Trigger on version tags like v1.0.0
-  workflow_dispatch:  # Allow manual trigger
+      - 'v*'
+  workflow_dispatch:
 
 jobs:
   build-windows:
@@ -12,10 +12,10 @@ jobs:
     
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
     
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.12'
     
@@ -27,7 +27,7 @@ jobs:
     
     - name: Build EXE with PyInstaller
       run: |
-        pyinstaller --onefile --console --name "AmazonScraper" product_scrap.py
+        pyinstaller --onefile --console --name "AmazonScraper" amazon_exporter.py
     
     - name: Get version from tag
       id: get_version
@@ -45,55 +45,57 @@ jobs:
         mkdir release
         cp dist/AmazonScraper.exe release/
         cp README.md release/
-        cp LICENSE release/ || echo "No LICENSE file"
+        cp LICENSE release/ 2>/dev/null || echo "No LICENSE file"
         cd release
         7z a ../AmazonScraper-${{ steps.get_version.outputs.VERSION }}-windows.zip *
     
     - name: Upload Artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: AmazonScraper-Windows
         path: |
           dist/AmazonScraper.exe
           AmazonScraper-*.zip
+        retention-days: 30
     
     - name: Create Release
       if: startsWith(github.ref, 'refs/tags/')
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       with:
         files: |
           AmazonScraper-*.zip
           dist/AmazonScraper.exe
         body: |
-          ## Amazon Product Scraper ${{ steps.get_version.outputs.VERSION }}
+          ## Amazon Product Details Scraper ${{ steps.get_version.outputs.VERSION }}
           
-          ### 📦 Downloads
-          - **Windows EXE**: `AmazonScraper.exe` (standalone, no Python required)
-          - **ZIP Package**: Includes EXE, README, and LICENSE
+          ### Downloads
+          - Windows EXE: `AmazonScraper.exe` (standalone, no Python required)
+          - ZIP Package: Includes EXE, README, and LICENSE
           
-          ### ✨ Features
-          - Search Amazon India products
-          - Customizable product count (1-50)
-          - Choose save location
+          ### Features
+          - Scrape Amazon India product details
+          - Extract: Title, Price, Rating, Review Count, Bestseller Rank, Categories
+          - Batch processing from file or single URL
           - Export to formatted Excel
-          - Headless operation
+          - Headless browser operation
           
-          ### 🚀 Quick Start
+          ### Quick Start
           1. Download `AmazonScraper.exe`
-          2. Double-click to run
-          3. Follow prompts
-          4. Get your Excel file!
+          2. Run from command line:
+             AmazonScraper.exe --input "https://www.amazon.in/dp/B0CZL9BM4S"
+          3. Check the generated Excel file
           
-          ### 📋 Requirements
+          ### Requirements
           - Windows 10/11
           - Google Chrome browser installed
           - Internet connection
           
-          ### 🐛 Bug Fixes & Improvements
-          See [CHANGELOG.md](CHANGELOG.md) for details.
+          ### Usage Examples
+          - Single URL: `AmazonScraper.exe --input "URL"`
+          - Batch from file: `AmazonScraper.exe --input "urls.txt"`
+          - Custom output: `AmazonScraper.exe --input "urls.txt" --output "results.xlsx"`
           
-          ---
-          **Full Changelog**: https://github.com/${{ github.repository }}/compare/${{ steps.get_version.outputs.VERSION }}
+          See README.md for full documentation.
         draft: false
         prerelease: false
       env:
@@ -104,10 +106,10 @@ jobs:
     
     steps:
     - name: Checkout code
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
     
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.12'
     
@@ -124,10 +126,11 @@ jobs:
     
     - name: Build Linux Executable
       run: |
-        pyinstaller --onefile --console --name "AmazonScraper" product_scrap.py
+        pyinstaller --onefile --console --name "AmazonScraper" amazon_exporter.py
     
     - name: Get version from tag
       id: get_version
+      shell: bash
       run: |
         if [[ $GITHUB_REF == refs/tags/* ]]; then
           echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
@@ -140,21 +143,22 @@ jobs:
         mkdir release
         cp dist/AmazonScraper release/
         cp README.md release/
-        cp LICENSE release/ || echo "No LICENSE file"
+        cp LICENSE release/ 2>/dev/null || echo "No LICENSE file"
         cd release
         tar -czf ../AmazonScraper-${{ steps.get_version.outputs.VERSION }}-linux.tar.gz *
     
     - name: Upload Artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: AmazonScraper-Linux
         path: |
           dist/AmazonScraper
           AmazonScraper-*.tar.gz
+        retention-days: 30
     
     - name: Upload to Release
       if: startsWith(github.ref, 'refs/tags/')
-      uses: softprops/action-gh-release@v1
+      uses: softprops/action-gh-release@v2
       with:
         files: |
           AmazonScraper-*.tar.gz
