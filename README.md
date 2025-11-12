@@ -1,335 +1,232 @@
-# 🛒 Amazon Product Scraper
+# Amazon Product Details Scraper
 
-A powerful and user-friendly tool to scrape product information from Amazon India and export the data to beautifully formatted Excel files.
+A Python tool to scrape detailed product information from Amazon India and export the data to beautifully formatted Excel files.
 
-## ✨ Features
+## Features
 
-- 🔍 **Smart Search** - Search any product on Amazon India
-- 📊 **Customizable Results** - Choose number of products to scrape (1-50)
-- 📁 **Flexible Storage** - Save Excel files to any location
-- 🎨 **Beautiful Excel Output** - Formatted with headers, clickable URLs, and metadata
-- 🚀 **Headless Operation** - Runs in background without opening browser windows
-- 💾 **Data Extraction**:
-  - Product Name
-  - Price
-  - Rating
-  - Number of Reviews
-  - Product URL (clickable)
-- ⏱️ **Timestamped Files** - Never overwrite previous searches
-- 🖥️ **Cross-Platform** - Works on Windows, Linux, and macOS
+- Smart extraction of product details from Amazon India
+- Extracts: Title, Price, Rating, Review Count, Bestseller Rank, Main Category, Sub Category
+- Batch processing of multiple URLs
+- Formatted Excel output with headers and styling
+- Headless browser operation (no window opens)
+- Cross-platform support (Windows, Linux, macOS)
+- Automatic ChromeDriver management
 
-## 📸 Screenshots
+## Data Extracted
 
-### Console Interface
-```
-============================================================
-        🛒 Amazon India Product Scraper 🛒
-============================================================
+| Field | Description | Example |
+|-------|-------------|---------|
+| ASIN | Amazon Standard Identification Number | B0CZL9BM4S |
+| Product Title | Full product name | Logitech Signature M650 L Wireless Mouse |
+| Price | Current price | 2,395 |
+| Rating | Star rating | 4.2 |
+| Number of Ratings | Count of customer ratings | 2,214 ratings |
+| Bestseller Rank | Product rank in category | #538 |
+| Main Category | Primary category | Electronics |
+| Sub Category | Secondary category | Computer Peripherals |
 
-🔍 Enter product keyword to search: laptop
-
-🔢 How many products would you like to scrape?
-   Number of products: 10
-
-📁 Save location: C:\Users\YourName\Documents
-
-✓ Found 63 products. Extracting top 10...
-[1/10] ✓ Dell Inspiron 15 Laptop...
-        Price: ₹45,990 | Rating: 4.3 | Reviews: 1,234
-```
-
-### Excel Output
-Beautiful, formatted spreadsheet with:
-- Header with search keyword
-- Timestamp
-- Color-coded columns
-- Clickable product URLs
-- Frozen header panes
-
-## 🚀 Quick Start
-
-### Prerequisites
+## Requirements
 
 - Python 3.8 or higher
 - Google Chrome or Chromium browser
 - Internet connection
 
-### Installation
+## Installation
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/yourusername/amazon-product-scraper.git
-   cd amazon-product-scraper
-   ```
+### 1. Install Python (if not already installed)
 
-2. **Install dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
+Download from https://www.python.org/downloads/
 
-3. **Run the scraper**
-   ```bash
-   python product_scrap.py
-   ```
+### 2. Install Dependencies
 
-### Using the Windows EXE (No Python Required)
+Create a `requirements.txt` file with:
 
-1. Download the latest `AmazonScraper.exe` from [Releases](https://github.com/yourusername/amazon-product-scraper/releases)
-2. Double-click to run
-3. Follow the on-screen prompts
-4. Find your Excel file in the chosen location
+```
+selenium==4.15.0
+openpyxl==3.11.0
+webdriver-manager==4.0.1
+```
 
-## 📦 Installation Guide
-
-### Method 1: Python Script
+Then install:
 
 ```bash
-# Clone repository
-git clone https://github.com/yourusername/amazon-product-scraper.git
-cd amazon-product-scraper
-
-# Create virtual environment (recommended)
-python -m venv venv
-
-# Activate virtual environment
-# On Windows:
-venv\Scripts\activate
-# On Linux/Mac:
-source venv/bin/activate
-
-# Install dependencies
 pip install -r requirements.txt
-
-# Run
-python product_scrap.py
 ```
 
-### Method 2: Windows Executable
-
-Download from [Releases](https://github.com/yourusername/amazon-product-scraper/releases) - no installation needed!
-
-## 🎯 Usage
-
-### Running the Script
+### 3. Verify Installation
 
 ```bash
-python product_scrap.py
+python --version
 ```
 
-### Interactive Prompts
+## Quick Start
 
-1. **Enter Search Keyword**
-   ```
-   🔍 Enter product keyword to search: wireless mouse
-   ```
+### Single URL
 
-2. **Choose Number of Products**
-   ```
-   🔢 How many products would you like to scrape?
-      Number of products: 20
-   ```
-
-3. **Select Save Location**
-   ```
-   📁 Where would you like to save the Excel file?
-      Enter full path: C:\Users\YourName\Documents
-   ```
-
-4. **Confirm and Scrape**
-   ```
-   ▶ Proceed with scraping? (y/n): y
-   ```
-
-### Example Output
-
-```
-============================================================
-✅ SUCCESS!
-============================================================
-📊 Scraped products: 20
-📁 File saved to: C:\Users\YourName\Documents\wireless_mouse_amazon_20251004_143022.xlsx
-📝 File name: wireless_mouse_amazon_20251004_143022.xlsx
-============================================================
+```bash
+python amazon_exporter.py --input "https://www.amazon.in/dp/B0CZL9BM4S"
 ```
 
-## 📋 Requirements
+### Multiple URLs from File
 
-```txt
-selenium>=4.15.0
-openpyxl>=3.1.0
+Create `urls.txt`:
+
 ```
-
-### System Requirements
-
-- **Python**: 3.8 or higher
-- **Browser**: Google Chrome or Chromium
-- **OS**: Windows 10/11, Linux (Ubuntu 20.04+), macOS 10.15+
-- **RAM**: Minimum 2GB recommended
-- **Disk Space**: ~100MB for dependencies
-
-## 🛠️ Advanced Usage
-
-### Customizing the Script
-
-Edit `product_scrap.py` to modify:
-
-- **Default product count**: Change line with `return 10`
-- **Max products limit**: Modify `if 1 <= count <= 50:`
-- **Wait times**: Adjust `time.sleep(3)` for slower/faster scraping
-- **User agent**: Update the user-agent string for different browsers
-
-### Running in Silent Mode
-
-For automation, you can modify the script to accept command-line arguments:
-
-```python
-import sys
-
-if len(sys.argv) >= 2:
-    keyword = sys.argv[1]
-    product_count = int(sys.argv[2]) if len(sys.argv) >= 3 else 10
+https://www.amazon.in/dp/B0CZL9BM4S
+https://www.amazon.in/dp/ANOTHER_ASIN
+https://www.amazon.in/dp/THIRD_ASIN
 ```
 
 Then run:
-```bash
-python product_scrap.py "laptop" 20
-```
-
-## 🔧 Troubleshooting
-
-### Common Issues
-
-#### 1. "Cannot find Chrome binary"
-
-**Solution**: Install Google Chrome or Chromium
 
 ```bash
-# Ubuntu/Debian
-sudo apt install chromium-browser
-
-# Windows
-# Download from: https://www.google.com/chrome/
+python amazon_exporter.py --input "urls.txt"
 ```
 
-#### 2. "No products found"
-
-**Possible Causes**:
-- Amazon blocking automated access (try again later)
-- Network connectivity issues
-- Invalid search keyword
-- Page structure changed
-
-**Solution**: 
-- Wait a few minutes and retry
-- Try a different keyword
-- Check `debug.html` file for details
-
-#### 3. "Module not found"
-
-**Solution**: Install missing dependencies
-```bash
-pip install -r requirements.txt
-```
-
-#### 4. Slow Scraping
-
-**Solution**: This is normal. The script waits to avoid detection and ensure data loads properly.
-
-## 🏗️ Building from Source
-
-### Create Windows EXE
+### Custom Output File
 
 ```bash
-# Install PyInstaller
-pip install pyinstaller
-
-# Build executable
-pyinstaller --onefile --console --name "AmazonScraper" product_scrap.py
-
-# Find output in: dist/AmazonScraper.exe
+python amazon_exporter.py --input "urls.txt" --output "my_results.xlsx"
 ```
 
-### Build Script (Automated)
+### Auto-generated Output (default)
 
-**Windows** (`build.bat`):
-```batch
-pip install pyinstaller
-pyinstaller --onefile --console --name "AmazonScraper" product_scrap.py
-echo Build complete! Check dist folder.
-pause
+If no `--output` specified, file is saved as:
+
+```
+amazon_products_20240115_143022.xlsx
 ```
 
-**Linux/Mac** (`build.sh`):
+## Usage Examples
+
+### Example 1: Single Product
+
 ```bash
-pip install pyinstaller
-pyinstaller --onefile --console --name "AmazonScraper" product_scrap.py
-echo "Build complete! Check dist folder."
+python amazon_exporter.py --input "https://www.amazon.in/dp/B0CZL9BM4S" --output "polo_shirt.xlsx"
 ```
 
-## 📊 Output Format
+### Example 2: Batch Processing
+
+Create `electronics.txt`:
+
+```
+https://www.amazon.in/dp/B08ABC123
+https://www.amazon.in/dp/B08ABC456
+https://www.amazon.in/dp/B08ABC789
+```
+
+Then run:
+
+```bash
+python amazon_exporter.py --input "electronics.txt" --output "electronics_data.xlsx"
+```
+
+## Output Format
 
 ### Excel Structure
 
-| # | Product Name | Price | Rating | Reviews | Product URL |
-|---|--------------|-------|--------|---------|-------------|
-| 1 | Product Name Here | ₹1,999 | 4.5 | 1,234 | [Link] |
-| 2 | Another Product | ₹2,499 | 4.2 | 567 | [Link] |
+| ASIN | Product Title | Price | Rating | # Ratings | Bestseller Rank | Main Category | Sub Category |
+|------|---------------|-------|--------|-----------|-----------------|---------------|--------------|
+| B0CZL9BM4S | Logitech Mouse | 2,395 | 4.2 | 2,214 ratings | #538 | Electronics | Peripherals |
 
-### File Naming Convention
+### Features of Generated Excel
+
+- Header with timestamp
+- Color-coded column headers
+- Properly sized columns for readability
+- Frozen header rows for easy scrolling
+- Professional formatting
+
+## Command Line Arguments
+
+```bash
+python amazon_exporter.py --input <URL_OR_FILE> [--output <OUTPUT_FILE>]
+```
+
+| Argument | Required | Description |
+|----------|----------|-------------|
+| `--input` | Yes | Single URL or file path containing URLs (one per line) |
+| `--output` | No | Output Excel file path (auto-generated if not specified) |
+
+## Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| ModuleNotFoundError | Run `pip install -r requirements.txt` |
+| ChromeDriver not found | webdriver-manager will auto-download it |
+| Connection timeout | Check internet connection, Amazon may be rate-limiting |
+| Empty data extracted | Amazon may have changed page structure, try again later |
+| Rating shows N/A | Product may not have ratings yet |
+
+## Tips
+
+- Add delays between multiple URLs to avoid blocking
+- Check the directory where you run the script for output files
+- URL must be Amazon India (`amazon.in`)
+- Some products may have missing fields (N/A) if not available
+- Script runs in headless mode (no browser window)
+
+## File Naming Convention
 
 ```
-{keyword}_amazon_{YYYYMMDD_HHMMSS}.xlsx
+amazon_products_YYYYMMDD_HHMMSS.xlsx
 
 Example:
-laptop_amazon_20251004_143022.xlsx
+amazon_products_20251111_114956.xlsx
 ```
 
-## 🤝 Contributing
+## URL Format
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Must be direct Amazon product URLs:
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+Valid:
+```
+https://www.amazon.in/dp/B0CZL9BM4S
+https://www.amazon.in/Logitech-Signature-Wireless-Mouse/dp/B0CZL9BM4S
+```
 
-## 📝 License
+Invalid:
+```
+https://www.amazon.in/s?k=laptop
+https://amazon.in/some-product
+```
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+## Performance
 
-## ⚠️ Disclaimer
+- Single URL: ~10-15 seconds
+- 10 URLs: ~2-3 minutes
+- 50 URLs: ~8-12 minutes
 
-This tool is for educational purposes only. Please respect Amazon's Terms of Service and robots.txt. Use responsibly and avoid excessive scraping that could impact Amazon's servers.
+Speed depends on your internet connection and Amazon's response time.
+
+## Limitations
+
+- Only works with Amazon India (amazon.in)
+- Requires active internet connection
+- Some data may be N/A if not available on product page
+- Amazon may rate-limit or block automated requests
+
+## License
+
+This project is licensed under the MIT License.
+
+## Disclaimer
+
+This tool is for educational and personal research purposes only. Please respect Amazon's Terms of Service and robots.txt. Use responsibly and avoid excessive scraping.
 
 - Do not use for commercial purposes without permission
-- Respect rate limits and implement delays
+- Respect rate limits and implement delays between requests
 - Use for personal research and learning only
 - The authors are not responsible for misuse
 
-## 🙏 Acknowledgments
+## Contact
 
-- Built with [Selenium](https://www.selenium.dev/) for web automation
-- Excel export powered by [openpyxl](https://openpyxl.readthedocs.io/)
-- Inspired by the need for easy product research
+For issues or suggestions, please reach out.
 
-## 📧 Contact
+## Contributing
 
-- **Issues**: [Report a bug](https://github.com/yourusername/amazon-product-scraper/issues)
-
-## 🗺️ Roadmap
-
-- [ ] Add support for multiple Amazon regions (US, UK, etc.)
-- [ ] Export to CSV format
-- [ ] Price tracking over time
-- [ ] Email notifications for price drops
-- [ ] GUI version with Tkinter
-- [ ] Scheduled scraping with cron/Task Scheduler
-- [ ] Database storage option (SQLite)
-- [ ] Product comparison features
-
-## ⭐ Star History
-
-If you find this project useful, please consider giving it a star! ⭐
+Contributions are welcome! Feel free to submit issues and pull requests.
 
 ---
+
+**Last Updated**: November 2025
